@@ -1,0 +1,104 @@
+#include <IRremote.h>
+const int IN1 = 4; //For right motors
+const int IN2 = 5;
+const int IN3 = 6; //For Right motors
+const int IN4 = 7;
+const int EA = 10; //Left Motor Speed
+const int EB = 9; //Right Motor Speed
+const int Sensor0 = A0; //left sensor
+const int Sensor1 = A1; //Middle sensor
+const int Sensor2 = A2; //Right sensor
+const int Sensor3 = A3; //e left sensor
+const int Sensor4 = A4; //e Right sensor
+
+const int RECV_PIN = 8;
+IRrecv irrecv(RECV_PIN);
+decode_results results;
+int state = 0;
+
+//Contol Theory of PD controller
+int error,  P_error;
+unsigned int Speed = 70; //set point
+int Kp = 15;//control the response of the motor, in another word the time delay
+int Kd = 2;
+
+void Forward(float leftMotor, float RightMotor);
+
+void setup() {
+
+  pinMode(IN1, OUTPUT);
+  pinMode(IN2, OUTPUT);
+  pinMode(IN3, OUTPUT);
+  pinMode(IN4, OUTPUT);
+  pinMode(EA, OUTPUT);
+  pinMode(EB, OUTPUT);
+  pinMode(Sensor0, INPUT);
+  pinMode(Sensor1, INPUT);
+  pinMode(Sensor2, INPUT);
+  pinMode(Sensor3, INPUT);
+  pinMode(Sensor4, INPUT);
+  Serial.begin(9600);
+  // Enable the IR Receiver
+  irrecv.enableIRIn();
+}
+
+void loop() {
+
+  if (irrecv.decode(&results)) {
+
+    switch (results.value) {
+      case 0xFF02FD: //OK Button
+        // Toggle state
+        if (state == 0) {
+          state = 1;
+        }
+        else {
+          state = 0;
+        }
+        break;
+
+    }
+    irrecv.resume();
+  }
+
+
+  int x_0 = analogRead(Sensor0); //left
+  int x_1 = analogRead(Sensor1); //middle
+  int x_2 = analogRead(Sensor2); //right
+  int x_3 = analogRead(Sensor3); //e left
+  int x_4 = analogRead(Sensor4); //e right
+  if (state == 1) { //controlled by IR remote to continou/stop
+    if (x_3 > 500 && x_0 < 100 && x_1 < 100 && x_2 < 100 && x_4 < 100)      //edge left sensor
+      error = -2;
+    if (x_3 < 100 && x_0 > 500  && x_1 < 100 && x_2 < 100 && x_4 < 100)     // left
+      error = -1;
+    else if (x_3 < 100 && x_0 < 100 && x_1 > 500 && x_2 < 100 && x_4 < 100) //mid
+      error = 0;
+    else if (x_3 < 100 && x_0 < 100 && x_1 < 100 && x_2 > 500 && x_4 < 100)  //right
+      error = +1;
+    else if (x_3 < 100 && x_0 < 100 && x_1 < 100 && x_2 < 100 && x_4 > 500)  //right edge
+      error = +2;
+
+
+    float Control_Signal = Kp * error + Kd * (error - P_error) ;
+    P_error = error - P_error;
+    float leftMotor = Speed + Control_Signal;
+    float RightMotor = Speed - Control_Signal;
+
+    constrain(leftMotor, 0, 100);
+    constrain(RightMotor, 0, 100);
+    Forward(leftMotor, RightMotor);
+    delay(10);
+    
+  }
+  else {}
+}
+
+void Forward(float leftMotor, float RightMotor) {
+  analogWrite(9, leftMotor);  //Left Motor Speed
+  analogWrite(10, RightMotor); //Right Motor Speed
+  digitalWrite(IN1, HIGH); // Right motor
+  digitalWrite(IN2, LOW);
+  digitalWrite(IN3, LOW);; // Left Motor
+  digitalWrite(IN4, HIGH);
+}
